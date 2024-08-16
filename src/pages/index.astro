@@ -1,0 +1,166 @@
+---
+import FileInput from '../components/FileInput.astro';
+import Layout from '../layouts/Layout.astro';
+---
+
+<Layout title="Database normalization">
+  <main>
+    <section
+      class="w-full h-screen flex flex-col items-center justify-center"
+      id="uploadSection"
+    >
+      <form class="w-full max-w-[550px]" id="formDatabaseNormalization">
+        <FileInput
+          id="tableFileUploader"
+          label="Click or drag file to this area to upload"
+          instructions="Upload a single CSV file with the table(s) to normalize"
+          accept=".csv"
+        />
+        <button
+          class="ml-auto block bg-cyan-600 text-white text-sm font-semibold py-2 px-4 rounded-full hover:bg-cyan-700 active:bg-cyan-800 transition-colors"
+          type="submit">Normalize</button
+        >
+      </form>
+    </section>
+    <section
+      class="w-full max-w-[1024px] mx-auto py-5 px-4 hidden"
+      id="normalizedTables"
+    >
+      <details open>
+        <summary class="text-3xl font-semibold cursor-pointer"
+          >Tables 1FN</summary
+        >
+        <div
+          class="grid gap-5 mt-5 pb-2 mb-8 w-full"
+          id="tables1FN"></div>
+      </details>
+      <details open>
+        <summary class="text-3xl font-semibold cursor-pointer"
+          >Tables 2FN</summary
+        >
+        <div
+          class="grid gap-5 mt-5 pb-2 mb-8 w-full"
+          id="tables2FN"></div>
+      </details>
+      <details open>
+        <summary class="text-3xl font-semibold cursor-pointer"
+          >Tables 3FN</summary
+        >
+        <div
+          class="grid gap-5 mt-5 pb-2 mb-8 w-full"
+          id="tables3FN"></div>
+      </details>
+    </section>
+  </main>
+</Layout>
+
+<script>
+  import { toast } from 'sonner';
+  import { uploadedFiles } from '../stores';
+  import {
+    readFileAsText,
+    splitCsvContent,
+    createTableToRender,
+  } from '../lib/utils';
+  import {
+    normalize1FN,
+    normalize2FN,
+    normalize3FN,
+  } from '../lib/utils/normalization/';
+  import type { ArrayOfTablesType } from '../lib/types';
+
+  const $normalizedTables = document.getElementById(
+    'normalizedTables',
+  ) as HTMLElement;
+  const $tables1FNContainer = document.getElementById(
+    'tables1FN',
+  ) as HTMLDivElement;
+  const $tables2FNContainer = document.getElementById(
+    'tables2FN',
+  ) as HTMLDivElement;
+  const $tables3FNContainer = document.getElementById(
+    'tables3FN',
+  ) as HTMLDivElement;
+
+  const renderNormalizedTables = (
+    tables: ArrayOfTablesType,
+    $container: HTMLDivElement,
+  ) => {
+    const $tablesFragment = document.createDocumentFragment();
+    tables.forEach((normalized1FNTable) => {
+      const normalizedTableElement = createTableToRender(normalized1FNTable);
+      $tablesFragment.appendChild(normalizedTableElement);
+    });
+    $container.appendChild($tablesFragment);
+  };
+  const normalizeTables = (tables: ArrayOfTablesType) => {
+    const all1FNNormalizedTables: ArrayOfTablesType = [];
+    const all2FNNormalizedTables: ArrayOfTablesType = [];
+    for (const tableIndex in tables) {
+      normalize1FN(
+        tables[tableIndex],
+        parseInt(tableIndex) + 1,
+        (normalized1FNTables) => {
+          renderNormalizedTables(normalized1FNTables, $tables1FNContainer);
+          all1FNNormalizedTables.push(...normalized1FNTables);
+        },
+        toast.error,
+      );
+    }
+    for (const _1FNTableIndex in all1FNNormalizedTables) {
+      const _1FNTable = all1FNNormalizedTables[_1FNTableIndex];
+      normalize2FN(
+        _1FNTable,
+        parseInt(_1FNTableIndex) + 1,
+        (normalized2FNTables) => {
+          renderNormalizedTables(normalized2FNTables, $tables2FNContainer);
+          all2FNNormalizedTables.push(...normalized2FNTables);
+        },
+        toast.error,
+      );
+    }
+    for (const _2FNTableIndex in all2FNNormalizedTables) {
+      const _2FNTable = all2FNNormalizedTables[_2FNTableIndex];
+      normalize3FN(
+        _2FNTable,
+        parseInt(_2FNTableIndex) + 1,
+        (normalized3FNTables) => {
+          renderNormalizedTables(normalized3FNTables, $tables3FNContainer);
+        },
+        toast.error,
+      );
+    }
+  };
+
+  const $formDatabaseNormalization = document.getElementById(
+    'formDatabaseNormalization',
+  ) as HTMLFormElement;
+  const $uploadSection = document.getElementById(
+    'uploadSection',
+  ) as HTMLElement;
+  $formDatabaseNormalization.addEventListener('submit', (e) => {
+    e.preventDefault();
+    if (
+      uploadedFiles[$formDatabaseNormalization?.tableFileUploader?.id ?? ''] ==
+      null
+    ) {
+      toast.warning('Please upload a CSV file to continue');
+      return;
+    }
+    const [csvFile] =
+      uploadedFiles[$formDatabaseNormalization?.tableFileUploader?.id ?? ''];
+    if (!csvFile) {
+      toast.warning('Please select a CSV file to continue');
+      return;
+    }
+    const onRead = (fileContent: string) => {
+      const formattedCsvContent = splitCsvContent(fileContent);
+      $uploadSection.classList.add('hidden');
+      $normalizedTables.classList.remove('hidden');
+      // format to access the data:
+      // formattedCsvContent[tableIndex][rowIndex][columnIndex]
+      normalizeTables(formattedCsvContent);
+    };
+    readFileAsText(csvFile, onRead, toast.error);
+  });
+</script>

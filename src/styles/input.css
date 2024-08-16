@@ -1,0 +1,14 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+table {
+  border-collapse: collapse;
+  @apply w-max max-w-full
+}
+thead {
+  @apply bg-cyan-800
+}
+th, td {
+  @apply px-4 py-2 border border-solid border-white/20 text-nowrap;
+}

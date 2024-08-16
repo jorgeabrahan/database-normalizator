@@ -1,0 +1,170 @@
+---
+import CloudUploadIcon from '../icons/CloudUploadIcon.astro';
+import TrashIcon from '../icons/TrashIcon.astro';
+
+interface Props {
+  id: string;
+  label: string;
+  instructions: string;
+  accept: string;
+  maxFiles?: number;
+}
+
+const { id, label, instructions, accept, maxFiles = 1 } = Astro.props;
+---
+
+<section class="mb-4" data-id="upload-file-input-section">
+  <label
+    class="text-sm border-2 border-dashed border-neutral-500 bg-neutral-800 hover:border-neutral-200 transition-colors duration-500 py-10 px-20 cursor-pointer flex flex-col items-center justify-center gap-4 rounded-lg w-full"
+    for={id}
+    data-id="upload-file-input-label"
+  >
+    <CloudUploadIcon size="40px" />
+    <div class="flex flex-col items-center gap-1">
+      <span class="text-lg">
+        {label}
+      </span>
+      <span class="text-sm text-neutral-400 text-center">
+        {instructions}
+      </span>
+    </div>
+    <input
+      class="hidden"
+      type="file"
+      name={id}
+      id={id}
+      accept={accept}
+      multiple={maxFiles > 1}
+      data-max-files={maxFiles}
+    />
+  </label>
+  <div data-id="uploaded-files-container">
+    <template data-id="uploaded-file-template">
+      <div class="flex items-center justify-between mt-2">
+        <div class="flex flex-col gap-[2px]">
+          <span
+            class="font-mono font-semibold leading-tight"
+            data-id="uploaded-file-name"></span>
+          <div
+            class="flex gap-1 items-center text-xs text-neutral-400 leading-tight font-mono"
+          >
+            <span data-id="uploaded-file-size"></span>
+            <span> • </span>
+            <span data-id="uploaded-file-type"></span>
+          </div>
+        </div>
+        <button data-id="uploaded-file-action__delete">
+          <TrashIcon size="18px" />
+        </button>
+      </div>
+    </template>
+  </div>
+</section>
+
+<script>
+  import { uploadedFiles, addInputFile, removeInputFile } from '../stores/';
+  import { toast } from 'sonner';
+  const $uploadFileInputSections = document.querySelectorAll(
+    '[data-id="upload-file-input-section"]',
+  ) as NodeListOf<HTMLElement>;
+
+
+  $uploadFileInputSections.forEach(($uploadFileInputSection) => {
+    const $uploadFileInputLabel = $uploadFileInputSection.querySelector(
+      '[data-id="upload-file-input-label"]',
+    ) as HTMLLabelElement;
+    const $uploadFileInput = $uploadFileInputLabel.querySelector(
+      'input[type="file"]',
+    ) as HTMLInputElement;
+    const inputId = $uploadFileInput.id;
+    if (!inputId) {
+      console.error('<FileInput /> ID is required');
+      return;
+    }
+    const maxFilesAllowed = parseInt(
+      $uploadFileInput.getAttribute('data-max-files') || '1',
+      10,
+    );
+    const $uploadedFilesContainer = $uploadFileInputSection.querySelector(
+      '[data-id="uploaded-files-container"]',
+    ) as HTMLDivElement;
+    const $uploadedFileTemplate = $uploadedFilesContainer.querySelector(
+      '[data-id="uploaded-file-template"]',
+    ) as HTMLTemplateElement;
+
+    const disableInputFile = () => {
+      $uploadFileInput.disabled = true;
+      $uploadFileInputLabel.classList.add('opacity-50')
+      $uploadFileInputLabel.classList.replace('cursor-pointer', 'cursor-not-allowed')
+      $uploadFileInputLabel.classList.remove('hover:border-neutral-200')
+    };
+    const enableInputFile = () => {
+      $uploadFileInput.disabled = false;
+      $uploadFileInputLabel.classList.remove('opacity-50')
+      $uploadFileInputLabel.classList.replace('cursor-not-allowed', 'cursor-pointer')
+      $uploadFileInputLabel.classList.add('hover:border-neutral-200')
+    };
+    
+    const renderUploadedFiles = () => {
+      // clear uploaded files container before rendering new ones
+      $uploadedFilesContainer.innerHTML = '';
+      for (const file of uploadedFiles[inputId] || []) {
+        const $uploadedFileFragment = $uploadedFileTemplate.content.cloneNode(
+          true,
+        ) as HTMLDivElement;
+        const $uploadedFile =
+          $uploadedFileFragment.firstElementChild as HTMLDivElement;
+        if ($uploadedFile == null) continue;
+
+        const $uploadedFileType = $uploadedFile.querySelector(
+          '[data-id="uploaded-file-type"]',
+        ) as HTMLSpanElement;
+        $uploadedFileType.textContent = file.type;
+
+        const $uploadedFileSize = $uploadedFile.querySelector(
+          '[data-id="uploaded-file-size"]',
+        ) as HTMLSpanElement;
+        $uploadedFileSize.textContent = `${file.size} bytes`;
+
+        const $uploadedFileName = $uploadedFile.querySelector(
+          '[data-id="uploaded-file-name"]',
+        ) as HTMLSpanElement;
+        $uploadedFileName.textContent = file.name;
+
+        const $uploadedFileActionDelete = $uploadedFile.querySelector(
+          '[data-id="uploaded-file-action__delete"]',
+        ) as HTMLButtonElement;
+
+        $uploadedFileActionDelete.addEventListener('click', (e) => {
+          e.preventDefault();
+          removeInputFile(file, inputId);
+          $uploadedFile.remove();
+          enableInputFile();
+        });
+        $uploadedFilesContainer.appendChild($uploadedFile);
+      }
+    };
+
+    $uploadFileInput?.addEventListener('change', () => {
+      if (
+        $uploadFileInput == null ||
+        $uploadFileInput.files == null ||
+        $uploadFileInput.files.length <= 0
+      )
+        return;
+      for (const file of $uploadFileInput.files) {
+        if (uploadedFiles[inputId]?.length >= maxFilesAllowed) {
+          toast.warning(
+            `The max amount of files you can upload is ${maxFilesAllowed}`,
+          );
+          break;
+        }
+        addInputFile(file, inputId);
+        if (uploadedFiles[inputId]?.length >= maxFilesAllowed) {
+          disableInputFile();
+        }
+      }
+      renderUploadedFiles();
+    });
+  });
+</script>
